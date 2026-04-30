@@ -127,7 +127,7 @@ def _():
             for z in zkratky:
                 if z in preskladane_jmeno:
                     preskladane_jmeno = preskladane_jmeno.replace(z, " ") + z
-            obracene.append(preskladane_jmeno.strip())
+            obracene.append(preskladane_jmeno.replace("  "," ").strip())
         return obracene
 
     return (prijmeni_jmeno,)
