@@ -30,8 +30,8 @@ def _(pl):
         .filter(pl.col("format").is_null())
         .filter(~pl.col("nazev").is_in(dokumentarni))
         .with_columns(
-            pl.lit(["x","Jiřina Bohdalová (2878)"]).alias("Hrají"),
-            pl.lit(["hraný"]).alias("Typologie")
+            pl.lit(["x", "Jiřina Bohdalová (2878)"]).alias("Hrají"),
+            pl.lit(["hraný"]).alias("Typologie"),
         )
         .filter(pl.col("rok") > 2016)
         .rename({"rok": "Copyright", "nazev": "Film", "stopaz": "Minutáž"})
@@ -71,7 +71,9 @@ def _(s_bohdalkou):
 
 @app.cell
 def _(df, pl):
-    df.explode("Hrají").filter(pl.col("Hrají") == "Jiřina Bohdalová (2878)").sort(by="Copyright",descending=True)
+    df.explode("Hrají").filter(pl.col("Hrají") == "Jiřina Bohdalová (2878)").sort(
+        by="Copyright", descending=True
+    )
     return
 
 
@@ -184,11 +186,11 @@ def _(df, pl, s_bohdalkou):
 
 @app.cell
 def _(df, pl):
-    df.filter(
-        pl.col("Minutáž") > 70
-    ).with_columns(pl.col("Hrají").list.slice(0,3)).explode("Hrají").group_by(
-        "Hrají"
-    ).len().sort(by="len", descending=True).with_row_index()
+    df.filter(pl.col("Minutáž") > 70).with_columns(
+        pl.col("Hrají").list.slice(0, 3)
+    ).explode("Hrají").group_by("Hrají").len().sort(
+        by="len", descending=True
+    ).with_row_index()
     return
 
 
@@ -202,51 +204,77 @@ def _(mo):
 
 @app.cell
 def _(df, pl):
-    len(df.filter(
-        pl.col("Minutáž") > 70
-    ).explode("Hrají").group_by(
-        "Hrají"
-    ).len())
+    len(df.filter(pl.col("Minutáž") > 70).explode("Hrají").group_by("Hrají").len())
     return
 
 
 @app.cell
 def _(df, pl, s_bohdalkou):
-    len(df.filter(
-        pl.col("Film").is_in(s_bohdalkou) & (pl.col("Minutáž") > 70)
-    ).explode("Hrají").group_by(
-        "Hrají"
-    ).len())
+    len(
+        df.filter(pl.col("Film").is_in(s_bohdalkou) & (pl.col("Minutáž") > 70))
+        .explode("Hrají")
+        .group_by("Hrají")
+        .len()
+    )
     return
 
 
 @app.cell
 def _(df, pl):
-    nejobsazovanejsi = df.explode("Typologie").filter(pl.col("Typologie") == "hraný").filter(pl.col("Minutáž") > 70).explode("Hrají").group_by("Hrají").len().filter(pl.col("len") >= 50).sort(by="len",descending=True).to_series().to_list()
+    nejobsazovanejsi = (
+        df.explode("Typologie")
+        .filter(pl.col("Typologie") == "hraný")
+        .filter(pl.col("Minutáž") > 70)
+        .explode("Hrají")
+        .group_by("Hrají")
+        .len()
+        .filter(pl.col("len") >= 50)
+        .sort(by="len", descending=True)
+        .to_series()
+        .to_list()
+    )
     return (nejobsazovanejsi,)
 
 
 @app.cell
 def _(df, nejobsazovanejsi, pl):
-    predpriprava = df.explode("Typologie").filter(pl.col("Typologie") == "hraný").filter(pl.col("Minutáž") > 70).explode("Hrají")
+    predpriprava = (
+        df.explode("Typologie")
+        .filter(pl.col("Typologie") == "hraný")
+        .filter(pl.col("Minutáž") > 70)
+        .explode("Hrají")
+    )
     s_kolika = []
     for o in nejobsazovanejsi:
-        filmy = predpriprava.filter(pl.col('Hrají') == o).select(pl.col("Film")).to_series().to_list()
-        spoluherectvo = predpriprava.filter(pl.col("Film").is_in(filmy)).select(pl.col("Hrají")).unique()
-        s_kolika.append({'Hrají':o,'s_kolika':len(spoluherectvo)})
+        filmy = (
+            predpriprava.filter(pl.col("Hrají") == o)
+            .select(pl.col("Film"))
+            .to_series()
+            .to_list()
+        )
+        spoluherectvo = (
+            predpriprava.filter(pl.col("Film").is_in(filmy))
+            .select(pl.col("Hrají"))
+            .unique()
+        )
+        s_kolika.append({"Hrají": o, "s_kolika": len(spoluherectvo)})
         print(o)
     return (s_kolika,)
 
 
 @app.cell
 def _(pl, s_kolika):
-    pl.DataFrame(s_kolika).sort(by="s_kolika",descending=True).with_row_index(offset=1)
+    pl.DataFrame(s_kolika).sort(by="s_kolika", descending=True).with_row_index(
+        offset=1
+    )
     return
 
 
 @app.cell
 def _(pl, s_kolika):
-    pl.DataFrame(s_kolika).sort(by="s_kolika",descending=True).with_row_index(offset=1).filter(pl.col("Hrají") == "Jiřina Bohdalová (2878)")
+    pl.DataFrame(s_kolika).sort(by="s_kolika", descending=True).with_row_index(
+        offset=1
+    ).filter(pl.col("Hrají") == "Jiřina Bohdalová (2878)")
     return
 
 
@@ -262,12 +290,14 @@ def _(mo):
 def _(df, pl):
     df.explode("Typologie").filter(pl.col("Typologie") == "hraný").filter(
         pl.col("Minutáž") > 70
-    ).with_columns(pl.col("Hrají").list.slice(0,3)).explode("Hrají").group_by("Hrají").agg(
+    ).with_columns(pl.col("Hrají").list.slice(0, 3)).explode("Hrají").group_by(
+        "Hrají"
+    ).agg(
         pl.col("Copyright").min().alias("prvni"),
-        pl.col("Copyright").max().alias("posledni")
-    ).with_columns(
-        (pl.col("posledni") - pl.col("prvni")).alias("rozdil")
-    ).sort(by="rozdil",descending=True)
+        pl.col("Copyright").max().alias("posledni"),
+    ).with_columns((pl.col("posledni") - pl.col("prvni")).alias("rozdil")).sort(
+        by="rozdil", descending=True
+    )
     return
 
 
@@ -281,7 +311,28 @@ def _(mo):
 
 @app.cell
 def _(df, pl):
-    [x for x in df.explode("Typologie").filter(pl.col("Typologie") == "hraný").filter(pl.col("Minutáž") > 70).with_columns(pl.col("Hrají").list.slice(0,3)).explode("Hrají").filter(pl.col("Hrají") == "Jiřina Bohdalová (2878)").select(pl.col('Film')).to_series().to_list() if x in df.explode("Typologie").filter(pl.col("Typologie") == "hraný").filter(pl.col("Minutáž") > 70).with_columns(pl.col("Hrají").list.slice(0,3)).explode("Hrají").filter(pl.col("Hrají") == "Radoslav Brzobohatý (2770)").select(pl.col('Film')).to_series().to_list()]
+    [
+        x
+        for x in df.explode("Typologie")
+        .filter(pl.col("Typologie") == "hraný")
+        .filter(pl.col("Minutáž") > 70)
+        .with_columns(pl.col("Hrají").list.slice(0, 3))
+        .explode("Hrají")
+        .filter(pl.col("Hrají") == "Jiřina Bohdalová (2878)")
+        .select(pl.col("Film"))
+        .to_series()
+        .to_list()
+        if x
+        in df.explode("Typologie")
+        .filter(pl.col("Typologie") == "hraný")
+        .filter(pl.col("Minutáž") > 70)
+        .with_columns(pl.col("Hrají").list.slice(0, 3))
+        .explode("Hrají")
+        .filter(pl.col("Hrají") == "Radoslav Brzobohatý (2770)")
+        .select(pl.col("Film"))
+        .to_series()
+        .to_list()
+    ]
     return
 
 
@@ -297,7 +348,7 @@ def _(mo):
 def _(df, pl, s_bohdalkou):
     df.filter(
         pl.col("Film").is_in(s_bohdalkou) & (pl.col("Minutáž") > 70)
-    ).explode(["Žánr"]).group_by("Žánr").len().sort(by="len",descending=True)
+    ).explode(["Žánr"]).group_by("Žánr").len().sort(by="len", descending=True)
     return
 
 
@@ -312,7 +363,14 @@ def _(mo):
 @app.cell
 def _(df, pl, s_bohdalkou):
     def zebricek(co, kolik=1000):
-        return df.filter(pl.col("Film").is_in(s_bohdalkou) & (pl.col("Minutáž") > 70)).with_columns(pl.col(co).list.slice(0,kolik)).explode(co).group_by(co).len().sort(by="len",descending=True)
+        return (
+            df.filter(pl.col("Film").is_in(s_bohdalkou) & (pl.col("Minutáž") > 70))
+            .with_columns(pl.col(co).list.slice(0, kolik))
+            .explode(co)
+            .group_by(co)
+            .len()
+            .sort(by="len", descending=True)
+        )
 
     return (zebricek,)
 
@@ -331,7 +389,7 @@ def _(zebricek):
 
 @app.cell
 def _(zebricek):
-    zebricek("Scénář",kolik=1)
+    zebricek("Scénář", kolik=1)
     return
 
 
