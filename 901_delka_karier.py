@@ -80,13 +80,21 @@ def _(mo):
 
 @app.cell
 def _(df, pl):
-    dokumentarni2 = df.explode("Typologie").filter(pl.col("Typologie") == "dokumentární").select(pl.col("Film")).to_series().to_list()
+    dokumentarni2 = (
+        df.explode("Typologie")
+        .filter(pl.col("Typologie") == "dokumentární")
+        .select(pl.col("Film"))
+        .to_series()
+        .to_list()
+    )
     return (dokumentarni2,)
 
 
 @app.cell
 def _(df, pl):
-    df.explode("Hrají").filter(pl.col("Hrají") == "Jiřina Bohdalová (2878)").sort(by="Copyright")
+    df.explode("Hrají").filter(pl.col("Hrají") == "Jiřina Bohdalová (2878)").sort(
+        by="Copyright"
+    )
     return
 
 
@@ -113,9 +121,9 @@ def _(df, dokumentarni2, persony, pl):
         pl.col("Copyright").max().alias("posledni"),
     ).with_columns(
         (pl.col("posledni") - pl.col("prvni")).alias("delka_kariery")
-    ).filter(
-        pl.col("Hrají").str.contains("\(")
-    ).sort(by="delka_kariery", descending=True)
+    ).filter(pl.col("Hrají").str.contains("\(")).sort(
+        by="delka_kariery", descending=True
+    )
     return
 
 
@@ -124,7 +132,8 @@ def _(df, dokumentarni2, persony, pl):
     for i in range(2000, 2020):
         print(i)
         print(
-            df.filter(pl.col("Copyright") <= i).explode("Hrají")
+            df.filter(pl.col("Copyright") <= i)
+            .explode("Hrají")
             .select("Film", "Copyright", "Hrají", "Minutáž")
             .join(
                 persony.select("Jméno", "Rok narození", "Rok úmrtí"),
@@ -156,46 +165,51 @@ def _(df, dokumentarni2, persony, pl):
 
 @app.cell
 def _(df, dokumentarni2, persony, pl):
-    df.explode('lide').select('Film','Copyright','lide',"Minutáž").join(
-        persony.select("Jméno","Rok narození","Rok úmrtí"),
+    df.explode("lide").select("Film", "Copyright", "lide", "Minutáž").join(
+        persony.select("Jméno", "Rok narození", "Rok úmrtí"),
         left_on="lide",
         right_on="Jméno",
-        how="left"
+        how="left",
     ).filter(
-        ((pl.col("Rok úmrtí").is_null()) | (pl.col("Copyright") < pl.col("Rok úmrtí"))) & (pl.col('Rok narození').is_not_null())
-    ).filter(~pl.col("Film").is_in(dokumentarni2)).group_by(
-        'lide'
-    ).agg(
+        (
+            (pl.col("Rok úmrtí").is_null())
+            | (pl.col("Copyright") < pl.col("Rok úmrtí"))
+        )
+        & (pl.col("Rok narození").is_not_null())
+    ).filter(~pl.col("Film").is_in(dokumentarni2)).group_by("lide").agg(
         pl.col("Rok narození").first(),
         pl.col("Rok úmrtí").first(),
         pl.col("Copyright").min().alias("prvni"),
-        pl.col("Copyright").max().alias("posledni")
+        pl.col("Copyright").max().alias("posledni"),
     ).with_columns(
         (pl.col("posledni") - pl.col("prvni")).alias("delka_kariery")
-    ).sort(by="delka_kariery",descending=True)
+    ).sort(by="delka_kariery", descending=True)
     return
 
 
 @app.cell
 def _(persony, pl):
-    persony.filter(pl.col('Jméno').str.contains("Svatopluk Beneš"))
+    persony.filter(pl.col("Jméno").str.contains("Svatopluk Beneš"))
     return
 
 
 @app.cell
 def _():
-    nestorstvo = [x.split('(')[0].strip() for x in [
-        'Jiřina Bohdalová (2878)',
-        'Zdenka Procházková (42989)',
-        'Zita Kabátová (839)',
-        'Jiří Novotný (9283)',
-        'Svatopluk Beneš (13617)',
-        'Lubomír Lipský (9728)',
-        'Vladimír Hlavatý (34999)',
-        'Břetislav Pojar (3113)',
-        'Vladimír Brabec (3858)',
-        'Saskia Burešová (25639)'
-    ]]
+    nestorstvo = [
+        x.split("(")[0].strip()
+        for x in [
+            "Jiřina Bohdalová (2878)",
+            "Zdenka Procházková (42989)",
+            "Zita Kabátová (839)",
+            "Jiří Novotný (9283)",
+            "Svatopluk Beneš (13617)",
+            "Lubomír Lipský (9728)",
+            "Vladimír Hlavatý (34999)",
+            "Břetislav Pojar (3113)",
+            "Vladimír Brabec (3858)",
+            "Saskia Burešová (25639)",
+        ]
+    ]
     print(len(nestorstvo))
     print(nestorstvo)
     return (nestorstvo,)
@@ -203,14 +217,20 @@ def _():
 
 @app.cell
 def _(df, nestorstvo, pl):
-    df.explode('Hrají').filter(pl.col("Hrají").is_in(nestorstvo)).group_by(["Hrají","Copyright"]).len()
+    df.explode("Hrají").filter(pl.col("Hrají").is_in(nestorstvo)).group_by(
+        ["Hrají", "Copyright"]
+    ).len()
     return
 
 
 @app.cell
 def _(df, dokumentarni2, nestorstvo, pl):
     do_grafu = (
-        df.filter(~pl.col("Film").str.contains("Pižla")).explode("lide").with_columns(pl.col("lide").str.split("(").list.slice(0, 1)).explode("lide").with_columns(pl.col("lide").str.strip_chars())
+        df.filter(~pl.col("Film").str.contains("Pižla"))
+        .explode("lide")
+        .with_columns(pl.col("lide").str.split("(").list.slice(0, 1))
+        .explode("lide")
+        .with_columns(pl.col("lide").str.strip_chars())
         .filter(pl.col("lide").is_in(nestorstvo))
         .filter(~pl.col("Film").is_in(dokumentarni2))
         .group_by(["lide", "Copyright"])
@@ -225,18 +245,21 @@ def _(df, dokumentarni2, nestorstvo, pl):
 @app.cell
 def _(df, dokumentarni2, nestorstvo, pl):
     do_grafu_komplet = (
-        df.explode("lide")
-        .with_columns(pl.col("lide").str.split("(").list.slice(0, 1))
-        .explode("lide")
-        .with_columns(pl.col("lide").str.strip_chars())
-        .filter(pl.col("lide").is_in(nestorstvo))
-        .filter(~pl.col("Film").is_in(dokumentarni2))
-        .rename({"lide": "kdo", "Copyright": "rok", "Film": "film"})
-        .select(pl.col(["kdo", "rok", "film"]))
-        .unique()
-    ).with_columns(
-        pl.col("film").str.split(" (").list.slice(0,1)
-    ).explode("film").sort(by="rok")
+        (
+            df.explode("lide")
+            .with_columns(pl.col("lide").str.split("(").list.slice(0, 1))
+            .explode("lide")
+            .with_columns(pl.col("lide").str.strip_chars())
+            .filter(pl.col("lide").is_in(nestorstvo))
+            .filter(~pl.col("Film").is_in(dokumentarni2))
+            .rename({"lide": "kdo", "Copyright": "rok", "Film": "film"})
+            .select(pl.col(["kdo", "rok", "film"]))
+            .unique()
+        )
+        .with_columns(pl.col("film").str.split(" (").list.slice(0, 1))
+        .explode("film")
+        .sort(by="rok")
+    )
     return (do_grafu_komplet,)
 
 
@@ -304,19 +327,21 @@ def _(nestorstvo):
 
 @app.cell
 def _(do_grafu, pl):
-    do_grafu_simple = do_grafu.group_by(
-        'kdo'
-    ).agg(
-        pl.col('rok').min().alias('prvni'),
-        pl.col('rok').max().alias('posledni')
-    ).with_columns(
-        pl.col("prvni").cast(str).alias("prvni_text"),
-        pl.col("posledni").cast(str).alias("posledni_text"),
-    ).with_columns(
-        (pl.col("posledni") - pl.col("prvni")).alias("trvani")
-    ).with_columns(
-        (pl.col("trvani").cast(str) + pl.lit(" let")).alias("trvani_text"),
-        (pl.col("prvni") + (pl.col("trvani") / 2)).alias("prostredek")
+    do_grafu_simple = (
+        do_grafu.group_by("kdo")
+        .agg(
+            pl.col("rok").min().alias("prvni"),
+            pl.col("rok").max().alias("posledni"),
+        )
+        .with_columns(
+            pl.col("prvni").cast(str).alias("prvni_text"),
+            pl.col("posledni").cast(str).alias("posledni_text"),
+        )
+        .with_columns((pl.col("posledni") - pl.col("prvni")).alias("trvani"))
+        .with_columns(
+            (pl.col("trvani").cast(str) + pl.lit(" let")).alias("trvani_text"),
+            (pl.col("prvni") + (pl.col("trvani") / 2)).alias("prostredek"),
+        )
     )
 
     do_grafu_simple
@@ -325,7 +350,7 @@ def _(do_grafu, pl):
 
 @app.cell
 def _(do_grafu_simple):
-    do_grafu_simple.write_json('data/nejdelsi_kariery.json')
+    do_grafu_simple.write_json("data/nejdelsi_kariery.json")
     return
 
 
@@ -347,7 +372,7 @@ def _(alt, do_grafu, nestorstvo):
         # This ensures each actor gets their own separate line
         detail="kdo:N",
         # This ensures the line connects years in the correct order
-        order="rok:Q"
+        order="rok:Q",
     )
     return
 
@@ -365,20 +390,22 @@ def _(alt, do_grafu):
         # This ensures each actor gets their own separate line
         detail="kdo:N",
         # This ensures the line connects years in the correct order
-        order="rok:Q"
+        order="rok:Q",
     )
     return
 
 
 @app.cell
 def _(df, pl):
-    df.explode("Hrají").filter(pl.col("Hrají") == 'Zita Kabátová (839)')
+    df.explode("Hrají").filter(pl.col("Hrají") == "Zita Kabátová (839)")
     return
 
 
 @app.cell
 def _(df, pl):
-    df.explode("Hrají").filter(pl.col("Hrají") == "Vlasta Burian (11992)").select(pl.col("Copyright")).median()
+    df.explode("Hrají").filter(pl.col("Hrají") == "Vlasta Burian (11992)").select(
+        pl.col("Copyright")
+    ).median()
     return
 
 

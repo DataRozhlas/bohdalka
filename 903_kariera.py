@@ -38,9 +38,17 @@ def _(pl):
         .with_columns(
             pl.lit(["x","Jiřina Bohdalová (2878)"]).alias("Hrají"),
             pl.lit(["hraný"]).alias("Typologie")
-        )
-        .rename({"rok": "Copyright", "nazev": "Film", "stopaz": "Minutáž"})
-    )
+        )).rename({"rok": "Copyright", "nazev": "Film", "stopaz": "Minutáž"}).with_columns(
+                (
+                    1
+                    + pl.col("hrají")
+                    .list.eval(
+                        pl.arg_where(
+                            pl.element() == pl.lit("Jiřina Bohdalová")
+                        )
+                    )
+                    .list.first()
+                ).alias("kolikata_bohdalka"))
 
     sloupce_csfd = doplneni1.columns
 
@@ -52,8 +60,17 @@ def _(pl):
             pl.lit(["x","Jiřina Bohdalová (2878)"]).alias("Hrají"),
             pl.lit(["hraný"]).alias("Typologie")
         )
-        .rename({"rok": "Copyright", "nazev": "Film", "stopaz": "Minutáž"})
-    )
+        .rename({"rok": "Copyright", "nazev": "Film", "stopaz": "Minutáž"}).with_columns(
+                (
+                    1
+                    + pl.col("hrají")
+                    .list.eval(
+                        pl.arg_where(
+                            pl.element() == pl.lit("Jiřina Bohdalová")
+                        )
+                    )
+                    .list.first()
+                ).alias("kolikata_bohdalka")))
 
     s_bohdalkou = (
         pl.read_parquet("../filmovy-prehled/data/filmy.parquet").explode("Hrají")
@@ -75,7 +92,19 @@ def _(pl):
         ],
         how="diagonal_relaxed",
     )
-    return df, sloupce_csfd
+    return df, doplneni1, sloupce_csfd
+
+
+@app.cell
+def _(doplneni1):
+    doplneni1
+    return
+
+
+@app.cell
+def _(pl):
+    role_z_filmoveho_prehledu = pl.read_json('data/role_z_filmoveho_prehledu.json')
+    return (role_z_filmoveho_prehledu,)
 
 
 @app.cell
@@ -85,31 +114,58 @@ def _(df):
 
 
 @app.cell
-def _(c, df, pl):
+def _(df, pl, role_z_filmoveho_prehledu):
     filmove_role = (
-        df.filter(
-            pl.col("Země původu").is_not_null()
-            | (pl.col("Film") == "Vánoční příběh")
+        (
+            df.filter(
+                pl.col("Země původu").is_not_null()
+                | (pl.col("Film") == "Vánoční příběh")
+            )
+            .with_columns(
+                (
+                    1
+                    + pl.col("Hrají")
+                    .list.eval(
+                        pl.arg_where(
+                            pl.element() == pl.lit("Jiřina Bohdalová (2878)")
+                        )
+                    )
+                    .list.first()
+                ).alias("kolikata_bohdalka")
+            )
+            .select(pl.col(["Copyright", "Film", "kolikata_bohdalka","Žánr"]))
+            .sort(by="Copyright")
+            .with_columns(pl.lit("film").alias("typ"))
         )
         .with_columns(
-            (
-                1
-                + pl.col("Hrají")
-                .list.eval(
-                    pl.arg_where(pl.element() == pl.lit("Jiřina Bohdalová (2878)"))
-                )
-                .list.first()
-            ).alias("kolikata_bohdalka")
+            pl.when(pl.col("kolikata_bohdalka") <= 3)
+            .then(pl.lit(True))
+            .otherwise(pl.lit(False))
+            .alias("hlavni"),
+            pl.col("Žánr").list.join(", ")
         )
-        .select(pl.col(["Copyright", "Film", "kolikata_bohdalka"]))
-        .sort(by="Copyright")
-        .with_columns(pl.lit("film").alias("typ"))
-    ).with_columns(
-        pl.when(pl.col("kolikata_bohdalka") <= 3).then(pl.lit(True)).otherwise(pl.lit(False)).alias("hlavni")
-    ).rename({'Copyright':'rok','Film':'film'}).drop('kolikata_bohdalka')
+        .rename({"Copyright": "rok", "Film": "film","Žánr":"žánry"})
+        .drop("kolikata_bohdalka")
+        .join(role_z_filmoveho_prehledu, how="left", on=["film", "rok"])
+        .with_columns(
+            pl.when(pl.col("film") == "Glorie")
+            .then(pl.lit("dívka v průjezdu"))
+            .when(pl.col("film") == "Tajemství písma")
+            .then(pl.lit("prodavačka ve starožitnictví"))
+            .when(pl.col("film") == "Vánoční příběh")
+            .then(pl.lit("herečka Skálová"))
+            .otherwise(pl.col("role"))
+            .alias("role")
+        )
+    )
 
-    c
+    filmove_role
     return (filmove_role,)
+
+
+@app.cell
+def _():
+    return
 
 
 @app.cell
@@ -118,16 +174,27 @@ def _(df, pl, sloupce_csfd):
         df.filter(pl.col("Země původu").is_null())
         .select(pl.col(sloupce_csfd))
         .rename({"Film": "film", "Copyright": "rok"})
-        .with_columns(pl.lit(None).alias("hlavni"))
+        .with_columns(
+            pl.lit(None).alias("hlavni"),
+            pl.lit(None).alias("role")
+        )
         .with_columns(
             pl.when(pl.col("epizoda").is_not_null())
             .then(pl.col("film") + pl.lit(": ") + pl.col("epizoda"))
             .otherwise(pl.col("film"))
-            .alias("film")
+            .alias("film"),
+            pl.when(pl.col("kolikata_bohdalka") <= 3)
+            .then(pl.lit(True))
+            .otherwise(pl.lit(False))
+            .alias("hlavni")
         )
-        .with_columns(pl.lit("TV").alias("typ"))
-        .select(pl.col(["rok", "film", "typ", "hlavni"]))
-    )
+        .with_columns(
+            pl.when(pl.col("epizoda").is_not_null()).then(pl.lit("seriál")).otherwise(pl.lit("TV film")).alias("typ")
+        )
+        .select(pl.col(["rok", "film","zanry","typ", "hlavni","role"]))
+    ).with_columns(
+        pl.col("zanry").list.join(", ")
+    ).rename({"zanry":"žánry"})
 
     tv_role
     return (tv_role,)
@@ -135,8 +202,29 @@ def _(df, pl, sloupce_csfd):
 
 @app.cell
 def _(filmove_role, pl, tv_role):
-    role = pl.concat([filmove_role, tv_role])
+    role = (
+        pl.concat([filmove_role, tv_role])
+        .sort(by="rok")
+        .unique(subset="film")
+        .with_columns(
+            pl.when(pl.col("žánry").str.contains_any(["dětský", "pohádka"]))
+            .then(pl.lit("pohádka"))
+            .when(pl.col("žánry").str.contains("komedie"))
+            .then(pl.lit("komedie"))
+            .when(pl.col("žánry").str.contains("drama"))
+            .then(pl.lit("drama"))
+            .alias("žánr"),
+            pl.col("hlavni").fill_null(pl.lit(False))
+        )
+        .drop("žánry")
+    )
     return (role,)
+
+
+@app.cell
+def _(pl, role):
+    role.filter(pl.col('film').str.contains('Svatá'))
+    return
 
 
 @app.cell
